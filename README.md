@@ -8,7 +8,7 @@
 > **Authors: Huichun Liu, Xiaosong Li, Zhuangfan Huang, Tao Ye, Yang Liu, Haishu Tan** 
 >
 
-This is the official PyTorch implementation of **CAWM-Mamba**, a channel attention wavelet Mamba network for weather image fusion. CAWM-Mamba jointly leverages channel attention mechanisms and wavelet decomposition to guide the fusion of infrared and visible light images under various weather conditions.
+This is the official PyTorch implementation of **CAWM-Mamba**, the first end-to-end framework that jointly performs image fusion and compound weather restoration. CAWM-Mamba integrates three key components: (1) **Weather-Aware Preprocess Module (WAPM)** to enhance degraded features; (2) **Cross-modal Feature Interaction Module (CFIM)** to facilitate modality alignment; and (3) **Wavelet Space State Block (WSSB)** to decouple multi-frequency degradations.
 
 <p align="center">
   <img src="Figures/Framework.png" width="90%">
