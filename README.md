@@ -202,10 +202,6 @@ If you find this work useful, please cite:
 
 **arXiv Preprint:** [https://arxiv.org/abs/2603.02560](https://arxiv.org/abs/2603.02560)
 
-## 📄 License
-
-[Specify your license here]
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bug reports and feature requests.
