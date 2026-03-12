@@ -1,4 +1,4 @@
-# CAWM-Mamba: Channel Attention Wavelet Mamba for Weather Image Fusion
+# CAWM-Mamba: A Unified Model for Infrared-Visible Image Fusion and Compound Adverse Weather Restoration
 
 [![arXiv](https://img.shields.io/badge/arXiv-2603.02560-b31b1b.svg)](https://arxiv.org/abs/2603.02560)
 [![ESWA](https://img.shields.io/badge/ESWA-Expert%20Systems%20with%20Applications-blue.svg)](https://www.sciencedirect.com/science/article/abs/pii/S0957417426005786)
@@ -222,3 +222,4 @@ For questions and inquiries, please contact:
 ---
 
 Last Updated: March 2026
+
