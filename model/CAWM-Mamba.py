@@ -265,27 +265,27 @@ class SS2D_HIGHFREQ(nn.Module):
 
 
     def diagonal_gather(self, tensor):
-        # 取出矩阵所有反斜向的元素并拼接
+
         B, C, H, W = tensor.size()
-        shift = torch.arange(H, device=tensor.device).unsqueeze(1)  # 创建一个列向量[H, 1]
-        index = (shift + torch.arange(W, device=tensor.device)) % W  # 利用广播创建索引矩阵[H, W]
-        # 扩展索引以适应B和C维度
+        shift = torch.arange(H, device=tensor.device).unsqueeze(1)  
+        index = (shift + torch.arange(W, device=tensor.device)) 
+
         expanded_index = index.unsqueeze(0).unsqueeze(0).expand(B, C, -1, -1)
-        # 使用gather进行索引选择
+
         return tensor.gather(3, expanded_index).transpose(-1,-2).reshape(B, C, H*W)
 
     def diagonal_scatter(self, tensor_flat, original_shape):
-        # 把斜向元素拼接起来的一维向量还原为最初的矩阵形式
+
         B, C, H, W = original_shape
-        shift = torch.arange(H, device=tensor_flat.device).unsqueeze(1)  # 创建一个列向量[H, 1]
-        index = (shift + torch.arange(W, device=tensor_flat.device)) % W  # 利用广播创建索引矩阵[H, W]
-        # 扩展索引以适应B和C维度
+        shift = torch.arange(H, device=tensor_flat.device).unsqueeze(1) 
+        index = (shift + torch.arange(W, device=tensor_flat.device)) 
+
         expanded_index = index.unsqueeze(0).unsqueeze(0).expand(B, C, -1, -1)
-        # 创建一个空的张量来存储反向散布的结果
+
         result_tensor = torch.zeros(B, C, H, W, device=tensor_flat.device, dtype=tensor_flat.dtype)
-        # 将平铺的张量重新变形为[B, C, H, W]，考虑到需要使用transpose将H和W调换
+
         tensor_reshaped = tensor_flat.reshape(B, C, W, H).transpose(-1, -2)
-        # 使用scatter_根据expanded_index将元素放回原位
+
         result_tensor.scatter_(3, expanded_index, tensor_reshaped)
         return result_tensor
 
@@ -598,79 +598,40 @@ class WaveletDecomposition(nn.Module):
         self.xfm = DWTForward(J=J, wave=wave,mode= 'zero')  # 初始化小波变换
 
     def forward(self, img):
-        # 对每个通道分别进行小波分解
-        # yl_g, yh_g = self.xfm(img[:, 0:1, :, :])  # G 通道
-        # yl_r, yh_r = self.xfm(img[:, 1:2, :, :])  # R 通道
-        # yl_b, yh_b = self.xfm(img[:, 2:3, :, :])  # B 通道
-        # print("img",img.shape)
-        img = img.permute(0, 3, 1, 2).contiguous()
-        # print("img",img.shape)
-        yl, yh = self.xfm(img)  # 合并三个通道的小波分解结果
-        # print("yl",yl.shape)      
-        # for i, h in enumerate(yh):
-        #     print(f"yh[{i}] 的形状:", h.shape)
-        # # 合并低频部分
-        # # LL = torch.cat((yl_g, yl_r, yl_b), dim=1)  # 合并三个通道的低频系数
 
-        # # 合并高频部分的三个方向（HL, LH, HH）
-        # HL = torch.cat((yh_g[0][:, 0:1, :, :], yh_r[0][:, 0:1, :, :], yh_b[0][:, 0:1, :, :]), dim=1)
-        # LH = torch.cat((yh_g[0][:, 1:2, :, :], yh_r[0][:, 1:2, :, :], yh_b[0][:, 1:2, :, :]), dim=1)
-        # HH = torch.cat((yh_g[0][:, 2:3, :, :], yh_r[0][:, 2:3, :, :], yh_b[0][:, 2:3, :, :]), dim=1)
+        img = img.permute(0, 3, 1, 2).contiguous()
+
+        yl, yh = self.xfm(img) 
+
         LH = yh[0][:, :, 0:1, :, :].squeeze(2).permute(0, 2, 3, 1).contiguous()
         HL = yh[0][:, :, 1:2, :, :].squeeze(2).permute(0, 2, 3, 1).contiguous()
         HH = yh[0][:, :, 2:3, :, :].squeeze(2).permute(0, 2, 3, 1).contiguous()
         yl = yl.permute(0, 2, 3, 1).contiguous()
-        # print("yl",yl.shape)
-        # print("HL",HL.shape)
+
         return yl, LH, HL, HH
 
 
 class WaveletReconstruction(nn.Module):
     def __init__(self, wave='haar'):
         super(WaveletReconstruction, self).__init__()
-        self.ifm = DWTInverse(wave=wave)  # 初始化小波逆变换
+        self.ifm = DWTInverse(wave=wave) 
 
     def forward(self, yl, HL, LH, HH):
         yl = yl.permute(0, 3, 1, 2).contiguous()
         HL = HL.permute(0, 3, 1, 2).contiguous()
         LH = LH.permute(0, 3, 1, 2).contiguous()
         HH = HH.permute(0, 3, 1, 2).contiguous()
-        yh = torch.cat((HL.unsqueeze(2), LH.unsqueeze(2), HH.unsqueeze(2)), dim=2)  # 合并三个方向的高频分量
-        # print("yh",yh.shape)
-        # 进行逆小波变换
+        yh = torch.cat((HL.unsqueeze(2), LH.unsqueeze(2), HH.unsqueeze(2)), dim=2) 
+
         yh_list = []
         yh_list.append(yh)
-        # 合并三个通道的图像
-        img = self.ifm((yl, yh_list)).permute(0, 2, 3, 1).contiguous()  # 逆小波变换
-        # print("img",img.shape)
+
+        img = self.ifm((yl, yh_list)).permute(0, 2, 3, 1).contiguous()
+
         return img
 
 
-# class CommonDegradationSpace(nn.Module):
-#     def __init__(self, num_feat, num_blocks=3):
-#         super().__init__()
-#         self.conv_in = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
-#         self.blocks = nn.ModuleList([
-#             nn.Sequential(
-#                 nn.Conv2d(num_feat, num_feat, 3, 1, 1),
-#                 nn.ReLU(inplace=True),
-#                 nn.Conv2d(num_feat, num_feat, 3, 1, 1)
-#             ) for _ in range(num_blocks)
-#         ])
-#         self.conv_out = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
-#         # 添加跳跃连接
-#         self.skip_conv = nn.Conv2d(num_feat, num_feat, 1)
-        
-#     def forward(self, x):
-#         x = self.conv_in(x)
-#         residual = x
-#         for block in self.blocks:
-#             x = block(x) + residual
-#             residual = x
-#         x = self.conv_out(x)
-#         # 添加跳跃连接
-#         x = x + self.skip_conv(x)
-#         return x
+
 class CommonDegradationSpace(nn.Module):
     def __init__(self, num_feat, num_blocks=3):
         super().__init__()
@@ -698,47 +659,24 @@ class CommonDegradationSpace(nn.Module):
         for block in self.blocks:
             x = block(x) + x  # 每个块的残差连接
         x = self.conv_out(x)
-        # 通道注意力
+
         att = self.channel_attention(x)
         x = x * att
-        # 全局残差连接
+
         return x + identity   
 
-# class WeatherAwarePreprocess(nn.Module):
-#     def __init__(self, inp_channels, dim):
-#         super().__init__()
-#         self.conv_in = nn.Conv2d(inp_channels, dim, kernel_size=3, padding=1)
-#         self.weather_classifier = nn.Sequential(
-#             nn.AdaptiveAvgPool2d(1),
-#             nn.Conv2d(dim, dim // 4, 1),
-#             nn.ReLU(inplace=True),
-#             nn.Conv2d(dim // 4, 3, 1),  # 3种天气
-#             nn.Softmax(dim=1)
-#         )
-#         self.weather_embedding = nn.Embedding(3, dim)  # 假设3种天气
-#         self.conv_out = nn.Conv2d(dim, 3, kernel_size=3, padding=1)
 
-#     def forward(self, x):
-#         x = self.conv_in(x)
-#         weather_probs = self.weather_classifier(x)
-#         weather_index = torch.argmax(weather_probs, dim=1).flatten()  
-#         weather_embedding = self.weather_embedding(weather_index)
-
-#         x = self.conv_out(x)
-#         return x, weather_embedding
-    
 class WeatherAwarePreprocess(nn.Module):
     def __init__(self, inp_channels, dim):
         super().__init__()
-        # 特征提取部分
+
         self.conv_in = nn.Sequential(
             nn.Conv2d(inp_channels, dim, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(dim, dim, kernel_size=3, padding=1),
             nn.ReLU(inplace=True)
         )
-        
-        # 特征增强部分
+
         self.enhancement = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(dim, dim // 4, 1),
@@ -746,30 +684,27 @@ class WeatherAwarePreprocess(nn.Module):
             nn.Conv2d(dim // 4, dim, 1),
             nn.Sigmoid()
         )
-        
-        # 生成全局特征嵌入
+
         self.global_embedding = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(dim, dim, 1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(dim, 48, 1)  # 固定输出48维特征
+            nn.Conv2d(dim, 48, 1) 
         )
         
-        # 输出调整
+
         self.conv_out = nn.Conv2d(dim, 3, kernel_size=3, padding=1)
 
     def forward(self, x):
-        # 特征提取
+
         feat = self.conv_in(x)
-        
-        # 通道注意力增强
+
         att = self.enhancement(feat)
         feat = feat * att
         
-        # 生成全局特征嵌入
+
         embedding = self.global_embedding(feat).squeeze(-1).squeeze(-1)  # [B, 48]
-        
-        # 输出调整
+
         out = self.conv_out(feat)
         
         return out, embedding
@@ -798,8 +733,8 @@ class VSSBlock(nn.Module):
         self.ln_22 = norm_layer(hidden_dim)
         self.ln_23 = norm_layer(hidden_dim)
 
-        self.SWT = WaveletDecomposition().cuda()  # 初始化平稳小波变换
-        self.ISWT = WaveletReconstruction().cuda()  # 初始化逆平稳小波变换
+        self.SWT = WaveletDecomposition().cuda()
+        self.ISWT = WaveletReconstruction().cuda()  
 
         self.self_attention = SS2D(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
         self.self_attention_HIGHFREQ= SS2D_HIGHFREQ(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
@@ -840,7 +775,7 @@ class VSSBlock(nn.Module):
 
         B, L, C = input.shape
         input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
-        LL, LH, HL, HH = self.SWT(input)  # LH是垂直，HL是水平，HH是对角！
+        LL, LH, HL, HH = self.SWT(input) 
 
         LL_in = self.ln_1(LL)
         HL_in = self.ln_11(HL)
@@ -861,35 +796,27 @@ class VSSBlock(nn.Module):
 
         wavelet_feature = self.ISWT(LL_attn, LH_DBD_attn, HL_VBD_attn, HH_HBD_attn)
 
-        # wavelet_feature = self.common_degradation(wavelet_feature.permute(0, 3, 1, 2).contiguous()) * self.alpha + \
-        #                  wavelet_feature * (1 - self.alpha).permute(0, 3, 1, 2).contiguous()
+
 
         degraded_feat = self.common_degradation(wavelet_feature.permute(0, 3, 1, 2).contiguous())
         wavelet_feature_permuted = wavelet_feature.permute(0, 3, 1, 2).contiguous()
-        
-        # 使用广播机制直接计算，不需要permute alpha
+
         wavelet_feature = degraded_feat * self.alpha + wavelet_feature_permuted * (1 - self.alpha)
 
         wavelet_feature =  wavelet_feature.permute(0, 2, 3, 1).contiguous()
-        # print("wavelet_feature.shape", wavelet_feature.shape)
-        # x = wavelet_feature*self.skip_scale5 + self.conv_blk(self.ln_2(wavelet_feature).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
-        # wavelet_feature = self.weather_aware(wavelet_feature).permute(0, 2, 3, 1).contiguous()
-        # if self.use_weather and weather_embedding is not None:
-        #     fused_features = torch.cat([wavelet_feature.mean(dim=[1, 2]), weather_embedding], dim=1)
-        #     modulation_weights = self.feature_modulation(fused_features).unsqueeze(1).unsqueeze(2)
-        #     wavelet_feature = wavelet_feature * modulation_weights
+
         if self.use_weather and weather_embedding is not None:
-    # 投影天气特征到当前维度
+
             weather_feat = self.weather_proj(weather_embedding)  # [B, hidden_dim]
             
-            # 提取当前特征的全局信息
+
             feature_mean = wavelet_feature.permute(0, 3, 1, 2).mean(dim=[2, 3])  # [B, C]
             
-            # 特征融合
+
             fused_features = torch.cat([feature_mean, weather_feat], dim=1)  # [B, 2*C]
             modulation_weights = self.feature_modulation(fused_features)  # [B, C]
             
-            # 应用调制权重
+
             modulation_weights = modulation_weights.view(B, C, 1, 1)
             wavelet_feature = wavelet_feature * modulation_weights.permute(0, 2, 3, 1)
         wavelet_feature = wavelet_feature.view(B, -1, C).contiguous()
@@ -899,16 +826,6 @@ class VSSBlock(nn.Module):
 
 
 ##########################################################################
-## Overlapped image patch embedding with 3x3 Conv
-# class OverlapPatchEmbed(nn.Module):
-#     def __init__(self, in_c=24, embed_dim=48, bias=False):
-#         super(OverlapPatchEmbed, self).__init__()
-
-#         self.proj = nn.Conv2d(in_c, embed_dim, kernel_size=3, stride=1, padding=1, bias=bias)
-#     def forward(self, x):
-#         x = self.proj(x)
-#         x = rearrange(x, "b c h w -> b (h w) c").contiguous()
-#         return x
 
 
 ##########################################################################
@@ -1085,18 +1002,7 @@ class WaveMamba(nn.Module):
         
         for layer in self.encoder_level1:
             out_enc_level1 = layer(out_enc_level1, [H, W] ,weather_embedding)
-        # print("out_enc_level1 shape:",out_enc_level1.shape)
-        
 
-        # inp_enc_level1 = out_enc_level1.view(1, 1024, 48, 1)  
-
-
-        # output = self.upsample(inp_enc_level1)  
-
-
-        # output = self.conv(output)
-        # print("output shape:",output.shape)
-        # return output
         out_enc_level1 = inp_enc_level1
         
         for layer in self.encoder_level1:
@@ -1119,10 +1025,10 @@ class WaveMamba(nn.Module):
         inp_enc_level4 = self.down3_4(out_enc_level3, H // 4, W // 4)  # b, hw//64, 8c
   
         latent = inp_enc_level4
-        # print("latenty   shape:",latent.shape)
+
         for layer in self.latent:
             latent = layer(latent, [H // 8, W // 8],weather_embedding)
-        # print("latent shape:",latent.shape)
+
         inp_dec_level3 = self.up4_3(latent, H // 8, W // 8)  # b, hw//16, 4c
        
         inp_dec_level3 = torch.cat([inp_dec_level3, out_enc_level3], 2)
@@ -1158,15 +1064,15 @@ class WaveMamba(nn.Module):
         inp_dec_level1 = torch.cat([inp_dec_level1, out_enc_level1], 2)
      
         out_dec_level1 = inp_dec_level1
-        # print("out_dec_level1 shape:",out_dec_level1.shape)
+
         for layer in self.decoder_level1:
             out_dec_level1 = layer(out_dec_level1, [H, W])
-        # print("out_dec_level1 shape:",out_dec_level1.shape)
+
         for layer in self.refinement:
             out_dec_level1 = layer(out_dec_level1, [H, W])
-        # print("out_dec_level1 shape:",out_dec_level1.shape)
+
         out_dec_level1 = rearrange(out_dec_level1, "b (h w) c -> b c h w", h=H, w=W).contiguous()
-        # print("out_dec_level1 shape:",out_dec_level1.shape)
+
         #### For Dual-Pixel Defocus Deblurring Task ####
         if self.dual_pixel_task:
             out_dec_level1 = out_dec_level1 + self.skip_conv(inp_enc_level1)
