@@ -68,33 +68,33 @@ def hyper_args():
 #                                                        num_workers=12)
 
 #     print("===> Building models")
-#     from model.AWM_Fuse import WaveMamba
-#     AWMFuse = WaveMamba().to(device)
-#     AWMFuse = torch.nn.parallel.DistributedDataParallel(AWMFuse, device_ids=[local_rank],
+#     from model.CAWM_Mamba import WaveMamba
+#     CAWMMamba = WaveMamba().to(device)
+#     CAWMMamba = torch.nn.parallel.DistributedDataParallel(CAWMMamba, device_ids=[local_rank],
 #                                                              find_unused_parameters=True)
 
 
 #     print("===> Setting Optimizers")
-#     optimizer = torch.optim.Adam(params=AWMFuse.parameters(), lr=args.lr)
+#     optimizer = torch.optim.Adam(params=CAWMMamba.parameters(), lr=args.lr)
 
 #     # TODO: optionally copy weights from a checkpoint
 #     if args.load_model_fuse is not None:
 #         print('Loading pre-trained FuseNet checkpoint %s' % args.load_model_fuse)
 #         log.info(f'Loading pre-trained checkpoint {str(args.load_model_fuse)}')
 #         state = torch.load(str(args.load_model_fuse),map_location = 'cpu')
-#         AWMFuse.load_state_dict(state)
+#         CAWMMamba.load_state_dict(state)
 #     else:
 #         print("=> no model found at '{}'".format(args.load_model_fuse))
 
 #     print("===> Starting Training")
 #     for epoch in range(args.start_epoch, args.nEpochs + 1):
 #         prev_time = time.time()
-#         train_step1(args, training_data_loader, optimizer, AWMFuse,
+#         train_step1(args, training_data_loader, optimizer, CAWMMamba,
 #                     epoch, device, prev_time)
 
 #         # TODO: save checkpoint
 #         if local_rank == 0:
-#             save_checkpoint(AWMFuse, epoch, cache) if epoch % interval == 0 else None
+#             save_checkpoint(CAWMMamba, epoch, cache) if epoch % interval == 0 else None
 
 def main(args):
     torch.backends.cudnn.benchmark = True
@@ -127,18 +127,18 @@ def main(args):
 
     print("===> Building models")
     from model.ori_version_526_version import WaveMamba
-    AWMFuse = WaveMamba().to(device)
-    AWMFuse = torch.nn.parallel.DistributedDataParallel(AWMFuse, device_ids=[local_rank],
+    CAWMMamba = WaveMamba().to(device)
+    CAWMMamba = torch.nn.parallel.DistributedDataParallel(CAWMMamba, device_ids=[local_rank],
                                                       find_unused_parameters=False)
 
     print("===> Setting Optimizers")
-    optimizer = torch.optim.Adam(params=AWMFuse.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(params=CAWMMamba.parameters(), lr=args.lr)
 
     if args.load_model_fuse is not None:
         print('Loading pre-trained FuseNet checkpoint %s' % args.load_model_fuse)
         log.info(f'Loading pre-trained checkpoint {str(args.load_model_fuse)}')
         state = torch.load(str(args.load_model_fuse), map_location='cpu')
-        AWMFuse.load_state_dict(state)
+        CAWMMamba.load_state_dict(state)
     else:
         print("=> no model found at '{}'".format(args.load_model_fuse))
 
@@ -162,25 +162,25 @@ def main(args):
                                                              pin_memory=True,
                                                              num_workers=24)
         prev_time = time.time()
-        train_step1(args, training_data_loader, optimizer, AWMFuse,
+        train_step1(args, training_data_loader, optimizer, CAWMMamba,
                     epoch, device, prev_time)
 
         if local_rank == 0:
-            save_checkpoint(AWMFuse, epoch, cache) if epoch % interval == 0 else None
-def train_step1(args, tqdm_loader, optimizer1, AWMFuse,
+            save_checkpoint(CAWMMamba, epoch, cache) if epoch % interval == 0 else None
+def train_step1(args, tqdm_loader, optimizer1, CAWMMamba,
                  epoch, device, prev_time):
 
-    AWMFuse.train()
+    CAWMMamba.train()
     # TODO: update learning rate of the optimizer
     lr_F = adjust_learning_rate(args, optimizer1, epoch - 1)
     print("Epoch={}, lr_F={} ".format(epoch, lr_F))
     for i, (data_IR, data_VIS, data_GT, data_gt_ir) in (enumerate(tqdm_loader)):
         data_VIS_rgb, data_IR, data_GT, data_gt_ir = (data_VIS.cuda(non_blocking=True), data_IR.cuda(non_blocking=True), data_GT.cuda(non_blocking=True), data_gt_ir.cuda(non_blocking=True))
 
-        AWMFuse.train()
-        AWMFuse.zero_grad()
+        CAWMMamba.train()
+        CAWMMamba.zero_grad()
     
-        rgb_Fuse = AWMFuse(data_VIS_rgb,data_IR)
+        rgb_Fuse = CAWMMamba(data_VIS_rgb,data_IR)
 
         loss_ = fusion_loss_vif()
         loss__= loss_(data_GT, data_gt_ir, rgb_Fuse)
